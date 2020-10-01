@@ -1,0 +1,3 @@
+[console_scripts]
+deconvolution = flowdec.cmd.deconvolution:main
+

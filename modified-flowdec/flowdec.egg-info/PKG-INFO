@@ -1,0 +1,19 @@
+Metadata-Version: 2.1
+Name: flowdec
+Version: 1.1.0
+Summary: TensorFlow Implementations of Signal Deconvolution Algorithms
+Home-page: https://github.com/hammerlab/flowdec
+Author: Eric Czech
+Author-email: eric@hammerlab.org
+License: http://www.apache.org/licenses/LICENSE-2.0.html
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Environment :: Console
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.6
+Description-Content-Type: text/markdown
+Provides-Extra: tf
+Provides-Extra: tf_gpu
