@@ -1,6 +1,7 @@
 # MEL
 Mitochondrial Event Localiser
 
+THIS CODE MAY NOT BE USED FOR COMMERCIAL PURPOSES WITHOUT PERMISSION FROM THE AUTHOR.
 
 ## Install the following libraries (indented lines should be installed automatically)
 ```
