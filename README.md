@@ -3,6 +3,10 @@ Mitochondrial Event Localiser
 
 THIS CODE MAY NOT BE USED FOR COMMERCIAL PURPOSES WITHOUT PERMISSION FROM THE AUTHOR.
 
+If this method or tool is used, please cite the following [paper](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0229634)
+
+Theart RP, Kriel J, du Toit A, Loos B, Niesler TR (2020) Mitochondrial event localiser (MEL) to quantitativelydescribe fission, fusion and depolarisation in the three-dimensional space. PLoS ONE 15(12): e0229634. https://doi.org/10.1371/journal.pone.0229634
+
 ## Install the following libraries (indented lines should be installed automatically)
 ```
 pip install tensorflow
