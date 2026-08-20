@@ -1,25 +1,7 @@
 import numpy as np
 from scipy import ndimage
 from time import time
-import pandas as pd
 from skimage import measure
-from skimage import io
-
-import matplotlib.pyplot as plt
-
-import trimesh
-
-import TiffMetadata
-
-import math
-
-from scipy.spatial.transform import Rotation as R
-from scipy.stats import multivariate_normal
-from scipy.ndimage import zoom
-from scipy import signal
-from scipy.ndimage.morphology import binary_fill_holes, binary_dilation
-from scipy.stats import moment
-from scipy.spatial import ConvexHull
 
 
 def labelStack(binarisedImageStack, minVolume=40):
@@ -84,7 +66,9 @@ def stack3DTo4D(labeledStack, numLabels):
     return output
 
 def fullStackToMesh(stackLabels, scaleVector=None):
-    if scaleVector == None:
+    import trimesh
+
+    if scaleVector is None:
         scaleVector = [1,1,1,1]
 
     properties = measure.regionprops(stackLabels)
@@ -96,9 +80,13 @@ def fullStackToMesh(stackLabels, scaleVector=None):
     return trimesh.voxel.base.ops.points_to_marching_cubes(listOfCoords).apply_transform(np.eye(4,4)*scaleVector)
 
 def getMetadata(filename):
+    import TiffMetadata
+
     return TiffMetadata.metadata(filename)
 
 def exportMeshAsPng(mesh, path, rotation):
+    from scipy.spatial.transform import Rotation as R
+
     if not path.lower().endswith('.png'):
         path = path + '.png'
     meshScene = mesh.scene()

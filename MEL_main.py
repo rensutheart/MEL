@@ -449,8 +449,8 @@ for fileNameIndex in range(startFileIndex, len(stackTimelapsePath)):
                 if saveResults:
                     try:
                         existingDf = pd.read_csv("{}outcomesHuman.csv".format(outputPath))
-                        existingDf = existingDf.drop('Unnamed: 0', 1)
-                        existingDf = existingDf.append(outcomesDf, ignore_index=False)
+                        existingDf = existingDf.drop(columns='Unnamed: 0')
+                        existingDf = pd.concat([existingDf, outcomesDf], ignore_index=False)
                         existingDf.to_csv("{}outcomesHuman.csv".format(outputPath))
                         print("Appended to outcomesHuman")
                     except:
@@ -471,4 +471,3 @@ for fileNameIndex in range(startFileIndex, len(stackTimelapsePath)):
             df['AverageVol'] = averageVolume
             df.to_csv("{}outcomes.csv".format(outputPath))
 
-    

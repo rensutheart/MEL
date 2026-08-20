@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from scipy.stats import multivariate_normal
-from scipy.ndimage.measurements import center_of_mass
+from scipy.ndimage import center_of_mass
 from scipy import ndimage
 from scipy import signal
 from skimage.filters import unsharp_mask
@@ -16,14 +16,10 @@ from skimage.morphology import disk, square, ball
 
 from scipy.spatial.distance import cdist
 
-import tensorflow as tf
-
 from time import time
 
 import Morphology
 import ImageAnalysis
-
-import trimesh
 
 import os
 from os import listdir
@@ -82,7 +78,11 @@ def backAndForthLabelMatching(listAssociatedLabelsF1, listAssociatedLabelsF2):
 
     print("backAndForthLabelMatching time: ", time() - backAndForthStartTime)
 
-    return np.array(withinAssociatedLabelsF1), np.array(withinAssociatedLabelsF2)
+    # NumPy 2 no longer silently creates ragged object arrays.  These rows are
+    # intentionally variable length (one row per label), so make that contract
+    # explicit.
+    return (np.array(withinAssociatedLabelsF1, dtype=object),
+            np.array(withinAssociatedLabelsF2, dtype=object))
 
 
 def labelToCanny(labeledStack):
@@ -168,7 +168,9 @@ def getAllHalfWayPoints(labeledStackF1, withinAssociatedLabelsF1):
         F1_label_index += 1
     print("\nHalfway Time: ", time() - halfwayTime)
 
-    return np.array(withinAssociatedLabelsF1_HWP), np.array(labelDistanceF1), np.array(withinAssociatedLabels_vector)
+    return (np.array(withinAssociatedLabelsF1_HWP, dtype=object),
+            np.array(labelDistanceF1, dtype=object),
+            np.array(withinAssociatedLabels_vector, dtype=object))
 
 def generateKernel(kernelSize=9, size=10, s=0.5, showKernel=False):
     # zDivFactor=2
@@ -185,7 +187,7 @@ def generateKernel(kernelSize=9, size=10, s=0.5, showKernel=False):
     covariance = np.diag(sigma ** 2)
 
     out = multivariate_normal.pdf(xy, mean=mu, cov=covariance)
-    zOut = signal.gaussian(kernelZ, kernelZ * 0.2)
+    zOut = signal.windows.gaussian(kernelZ, kernelZ * 0.2)
     zOut = zOut / zOut[kernelZ // 2]
     if showKernel:
         plt.figure()
@@ -193,7 +195,10 @@ def generateKernel(kernelSize=9, size=10, s=0.5, showKernel=False):
 
     # Reshape back to a (30, 30) grid.
     out = out.reshape(x.shape)
-    kernel = rescale(out, kernelSize / size, multichannel=False)
+    try:
+        kernel = rescale(out, kernelSize / size, channel_axis=None)
+    except TypeError:  # scikit-image < 0.19
+        kernel = rescale(out, kernelSize / size, multichannel=False)
     normalizationNum = kernel[kernelSize // 2, kernelSize // 2]
     kernel = kernel / normalizationNum
 
@@ -259,38 +264,50 @@ def compareOverlapV2(labeledStackF1, labeledStackF2):
 
     volume_overlap_F1_to_F2 = np.zeros((labeledStackF1.shape[0], labeledStackF2.shape[0]))
 
-    try:
+    if labeledStackF1.ndim != 4 or labeledStackF2.ndim != 4:
+        raise ValueError("label stacks must have shape (labels, z, y, x)")
+    if labeledStackF1.shape[1:] != labeledStackF2.shape[1:]:
+        raise ValueError("label stacks must use the same (z, y, x) grid")
 
-        print("Slice done: ", end='')
-        with tf.device('/gpu:0'):
-            for sl in range(0, labeledStackF1.shape[1]):
-                f1TensorSlice = tf.constant(labeledStackF1[:, sl, :, :])
-                f2TensorSlice = tf.constant(labeledStackF2[:, sl, :, :])
+    print("Slice done: ", end='')
+    for sl in range(0, labeledStackF1.shape[1]):
+        # This is the same multiply-and-sum calculation as the original
+        # TensorFlow loop, expressed as a CPU NumPy matrix product.  TensorFlow
+        # was never needed for this operation and made the event stage depend
+        # on an obsolete 2020 runtime.
+        frame_1 = labeledStackF1[:, sl, :, :].reshape(labeledStackF1.shape[0], -1)
+        frame_2 = labeledStackF2[:, sl, :, :].reshape(labeledStackF2.shape[0], -1)
+        volume_overlap_F1_to_F2 += frame_1 @ frame_2.T
+        print(" {} ".format(sl), end='')
 
-                for f1LabIndex in range(0, labeledStackF1.shape[0]):
-                    volume = tf.reduce_sum(tf.reduce_sum(tf.multiply(f1TensorSlice[f1LabIndex], f2TensorSlice), axis=2),
-                                        axis=1).numpy()
-                    volume_overlap_F1_to_F2[f1LabIndex] = np.add(volume, volume_overlap_F1_to_F2[
-                        f1LabIndex])  # don't erase with each slice iteration
-
-                print(" {} ".format(sl), end='')
-
-        print("\ncompareOverlapV2 Time: ", time() - startTime)\
-    
-    except:
-        print("Could not run compare. Possibly ran out of memory")
-        return False
+    print("\ncompareOverlapV2 Time: ", time() - startTime)
 
     return volume_overlap_F1_to_F2  # , np.swapaxes(volume_overlap_F1_to_F2,0,1)
 
 def checkStructuresInBetween(filteredBinary, vector, numPoints=50):
     start = np.array(vector[0])
     end = np.array(vector[1])
-    difference = end - start
-    step = difference / numPoints;
+    if numPoints < 1:
+        raise ValueError("numPoints must be positive")
 
-    for i in range(0, numPoints):
-        coord = np.around(start + step*i).astype(np.int8)
+    # Keep the historical sampling fractions (i / numPoints) while excluding
+    # i=0, the participant endpoint that caused the original false positive.
+    difference = end - start
+    fractions = np.arange(1, numPoints, dtype=float) / numPoints
+    coordinates = np.unique(
+        np.rint(start + fractions[:, np.newaxis] * difference).astype(np.intp),
+        axis=0,
+    )
+    start_coord = np.rint(start).astype(np.intp)
+    end_coord = np.rint(end).astype(np.intp)
+
+    for coord in coordinates:
+        # Several early/late fractions can round back onto an endpoint voxel.
+        # Exclude every such coordinate, not only the i=0 sample.
+        if np.array_equal(coord, start_coord) or np.array_equal(coord, end_coord):
+            continue
+        # int8 wrapped perfectly valid image coordinates above 127 into
+        # negative indices.  Use the platform's indexing integer instead.
         if filteredBinary[coord[0], coord[1], coord[2]] == 1:
             return True
 
@@ -415,13 +432,13 @@ def getFragFusePairs(overlapF1_to_F2, overlapF2_to_F1):
     for i in range(0, overlapF1_to_F2.shape[0]):
         listAssociatedLabelsF1.append(np.argwhere(overlapF1_to_F2[i] > 0)[:, 0])
 
-    listAssociatedLabelsF1 = np.array(listAssociatedLabelsF1)
+    listAssociatedLabelsF1 = np.array(listAssociatedLabelsF1, dtype=object)
 
     listAssociatedLabelsF2 = []
     for i in range(0, overlapF2_to_F1.shape[0]):
         listAssociatedLabelsF2.append(np.argwhere(overlapF2_to_F1[i] > 0)[:, 0])
 
-    listAssociatedLabelsF2 = np.array(listAssociatedLabelsF2)
+    listAssociatedLabelsF2 = np.array(listAssociatedLabelsF2, dtype=object)
 
     return listAssociatedLabelsF1, listAssociatedLabelsF2
 
@@ -429,7 +446,10 @@ def getFragFusePairs(overlapF1_to_F2, overlapF2_to_F1):
 def addKernelToOutputStack(kernel, outputStack, location, Frame1):
     kernelSize = kernel.shape[1]
     kernelDepth = kernel.shape[0]
-    location = np.around(location).astype(np.uint16)
+    # Kernel windows legitimately start before index zero near an image edge.
+    # Unsigned coordinates underflowed during the subtraction below, producing
+    # huge slice bounds and an empty/failed overlay.  Keep the signed index.
+    location = np.around(location).astype(np.intp)
 
     # ensure I stay within the bounds of the image
     startX = location[1] - kernelSize // 2
@@ -609,6 +629,8 @@ def outputImagePanel(outputPath, label, folder, Frame1, Frame2, outputStack, fil
 
 
 def showMesh(filteredBinary, labels, locations, dupLabels, dupLocations, zScale, xyScale):
+    import trimesh
+
     sc = trimesh.Scene()
     fullMesh = Morphology.fullStackToMesh(filteredBinary, [zScale, xyScale, xyScale, 1])
     sc.add_geometry(fullMesh)
@@ -688,6 +710,8 @@ def findCloseEvents(withinAssociatedLabels, withinAssociatedLabels_HWP, withinCh
 
 def checkEvent(typeEvent, stack4D_F1, stack4D_F2, associatedFromF1_to_F2, associatedFromF2_to_F1,
                associatedLabelInSame, location, stackF1, stackF2, zScale, xyScale, windowSize=100, binarize=True):
+    import trimesh
+
     sc = trimesh.Scene()
 
     thisLocation = location.copy()

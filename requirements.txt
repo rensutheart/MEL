@@ -1,0 +1,9 @@
+# Tested together on CPython 3.12.10 (Windows x86-64).
+numpy==2.2.6
+scipy==1.15.1
+scikit-image==0.25.1
+matplotlib==3.10.0
+pyparsing==3.2.1
+pandas==2.2.3
+opencv-python-headless==4.11.0.86
+tifffile==2023.4.12

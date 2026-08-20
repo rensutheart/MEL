@@ -11,11 +11,7 @@ from skimage.morphology import disk, square, ball
 
 import pandas as pd
 
-import TiffMetadata
 from scipy import ndimage
-
-from CZI_Processor import cziFile
-import tifffile
 
 import cv2
 
@@ -97,6 +93,8 @@ def plotStackHist(stack, bins=256, remove_zero=False, remove_max=False):
         return
 
 def loadTimelapseTif(path, scaleFactor=1, pad=False):
+    import TiffMetadata
+
     stackTimelapsePath = [f for f in listdir(path) if isfile(join(path, f)) and (f.endswith("tif") or f.endswith("tiff"))]
     stackTimelapsePath.sort()
 
@@ -106,6 +104,8 @@ def loadTimelapseTif(path, scaleFactor=1, pad=False):
     return timelapse, metadata
 
 def loadTifStack(filename, scaleFactor=1, pad=False):
+    import TiffMetadata
+
     stack = padStack3D(rescaleStackXY(io.imread(filename), scaleFactor)) if pad else io.imread(filename)
     metadata = TiffMetadata.metadata(filename)
 
@@ -123,6 +123,11 @@ def saveTifStack(filename, imageArray):
     io.imsave(filename, imageArray)
 
 def loadCZIFile(filename):
+    # CZI/Flowdec is an optional legacy preprocessing path.  Import it only
+    # when requested so the segmentation-to-events path stays headless and
+    # independent of the old TensorFlow stack.
+    from CZI_Processor import cziFile
+
     return cziFile(filename)
 
 def padImageTo3D(image):
@@ -260,7 +265,10 @@ def rescaleStackXY_RGB(stack, scaleFactor=2):
 
     imList = []
     for im in stack:
-        imList.append(rescale(im, scaleFactor, multichannel=True))
+        try:
+            imList.append(rescale(im, scaleFactor, channel_axis=-1))
+        except TypeError:  # scikit-image < 0.19
+            imList.append(rescale(im, scaleFactor, multichannel=True))
 
     return np.array(imList)
 
@@ -268,7 +276,10 @@ def rescaleImageRGB(image, scaleFactor=2):
     if scaleFactor == 1:
         return image
 
-    return rescale(image, scaleFactor, multichannel=True)
+    try:
+        return rescale(image, scaleFactor, channel_axis=-1)
+    except TypeError:  # scikit-image < 0.19
+        return rescale(image, scaleFactor, multichannel=True)
 
 def stackToMIP(stack):
     return np.max(stack, axis=0)
@@ -285,7 +296,7 @@ def saveCroppedImagePanel(Frame1, Frame2, EventsFrameRGB, cropXStart, cropXWidth
         np.max(EventsFrameRGB, axis=0)[cropYStart:cropYStart+cropYHeight,cropXStart:cropXStart+cropXWidth,:],)
         )
     
-    if type(outputPath) != type(outputPath):
+    if outputPath is not None:
         io.imsave(outputPath, (miniPanel*255).astype(np.uint8))
 
     return miniPanel

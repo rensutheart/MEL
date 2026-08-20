@@ -22,7 +22,8 @@ def getImages(fN):
     print('spacing: ', settings['spacing'], settings['unit'])
     tiff = Image.open(fN)
     i = 0
-    mode = np.float if tiff.mode == 'F' else np.uint
+    # np.float/np.uint were removed in NumPy 2.  Use explicit scalar types.
+    mode = np.float64 if tiff.mode == 'F' else np.uint64
 
     while True:
         try:
