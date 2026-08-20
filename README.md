@@ -1,6 +1,17 @@
 # MEL
 Mitochondrial Event Localiser
 
+> **Modern compatibility route:** This `main` branch preserves the original
+> 2020-era project. For a tested Python 3.12 workflow that starts from two
+> already-segmented 3-D TIFF frames—bypassing the legacy CZI preprocessing,
+> deconvolution, thresholding, and GUI—use the
+> [`codex/modern-runtime-instructions`](https://github.com/rensutheart/MEL/tree/codex/modern-runtime-instructions)
+> branch. It provides pinned requirements, a headless command-line/Python
+> runner, documented compatibility and defect fixes, machine-readable event
+> output, and 24 synthetic smoke/regression tests. It is a corrected
+> segmentation-stage compatibility route, not a reproduction of the paper's
+> reported results or new biological validation.
+
 THIS CODE MAY NOT BE USED FOR COMMERCIAL PURPOSES WITHOUT PERMISSION FROM THE AUTHOR.
 
 If this method or tool is used, please cite the following [paper](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0229634)
